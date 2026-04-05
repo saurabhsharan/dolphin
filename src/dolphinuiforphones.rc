@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!DOCTYPE gui SYSTEM "kpartgui.dtd">
-<gui name="dolphin" version="5">
+<gui name="dolphin" version="6">
     <MenuBar>
         <Menu name="file">
             <Action name="new_menu" />
@@ -66,6 +66,7 @@
         <Menu name="go">
             <Action name="bookmarks" />
             <Action name="closed_tabs" />
+            <Action name="go_downloads" />
         </Menu>
         <Menu name="tools">
             <Action name="open_preferred_search_tool" />
@@ -122,6 +123,7 @@
         <Action priority="0" name="go_forward"/>
         <Action priority="0" name="go_up"/>
         <Action priority="0" name="go_home"/>
+        <Action priority="0" name="go_downloads"/>
         <Action priority="0" name="stop"/>
         <Action priority="0" name="icons"/>
         <Action priority="0" name="compact"/>

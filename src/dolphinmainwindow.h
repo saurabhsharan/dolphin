@@ -453,6 +453,9 @@ private Q_SLOTS:
     /** Changes the location to the home URL. */
     void goHome();
 
+    /** Changes the location to the Downloads URL. */
+    void goDownloads();
+
     /** Open the previous URL in the URL history in a new tab. */
     void goBackInNewTab();
 

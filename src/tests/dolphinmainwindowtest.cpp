@@ -64,6 +64,7 @@ private Q_SLOTS:
     void testFocusPlacesPanel();
     void testPlacesPanelWidthResistance();
     void testGoActions();
+    void testGoDownloadsShortcut();
     void testOpenFiles();
     void testAccessibilityTree();
     void testAutoSaveSession();
@@ -751,6 +752,37 @@ void DolphinMainWindowTest::testGoActions()
     QVERIFY(!m_mainWindow->actionCollection()->action(KStandardAction::name(KStandardAction::Back))->isEnabled());
     QVERIFY(!m_mainWindow->actionCollection()->action(KStandardAction::name(KStandardAction::Forward))->isEnabled());
     QVERIFY(m_mainWindow->actionCollection()->action(QStringLiteral("undo_close_tab"))->isEnabled());
+}
+
+void DolphinMainWindowTest::testGoDownloadsShortcut()
+{
+    QScopedPointer<TestDir> testDir{new TestDir()};
+    testDir->createDir("start");
+
+    const QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    QVERIFY(!downloadsPath.isEmpty());
+    QVERIFY(QDir().mkpath(downloadsPath));
+
+    const QUrl startUrl = QUrl::fromLocalFile(QDir::cleanPath(testDir->url().toLocalFile() + "/start"));
+    const QUrl downloadsUrl = QUrl::fromLocalFile(downloadsPath);
+    m_mainWindow->openDirectories({startUrl}, false);
+    m_mainWindow->show();
+    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
+    QVERIFY(m_mainWindow->isVisible());
+
+    QAction *downloadsAction = m_mainWindow->actionCollection()->action(QStringLiteral("go_downloads"));
+    QVERIFY(downloadsAction);
+    QCOMPARE(downloadsAction->shortcut(), QKeySequence(Qt::ALT | Qt::META | Qt::Key_L));
+    QVERIFY(downloadsAction->isEnabled());
+
+    m_mainWindow->activeViewContainer()->view()->setFocus();
+    QTRY_VERIFY(m_mainWindow->activeViewContainer()->view()->hasFocus());
+
+    QSignalSpy spyDirectoryLoadingCompleted(m_mainWindow->m_activeViewContainer->view(), &DolphinView::directoryLoadingCompleted);
+    QTest::keyClick(m_mainWindow.data(), Qt::Key_L, Qt::AltModifier | Qt::MetaModifier);
+
+    QVERIFY(spyDirectoryLoadingCompleted.wait());
+    QTRY_COMPARE(m_mainWindow->activeViewContainer()->url(), downloadsUrl);
 }
 
 void DolphinMainWindowTest::testOpenFiles()

@@ -1297,6 +1297,16 @@ void DolphinMainWindow::goHome()
     m_activeViewContainer->urlNavigatorInternalWithHistory()->goHome();
 }
 
+void DolphinMainWindow::goDownloads()
+{
+    const QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
+    if (downloadsPath.isEmpty()) {
+        return;
+    }
+
+    changeUrl(QUrl::fromLocalFile(downloadsPath));
+}
+
 void DolphinMainWindow::goBackInNewTab()
 {
     const KUrlNavigator *urlNavigator = activeViewContainer()->urlNavigatorInternalWithHistory();
@@ -2187,6 +2197,16 @@ void DolphinMainWindow::setupActions()
                                     "<filename>Home</filename> folder.<nl/>Every user account "
                                     "has their own <filename>Home</filename> that contains their personal files, "
                                     "as well as hidden folders for their applications' data and configuration files."));
+    QAction *downloadsAction = actionCollection()->addAction(QStringLiteral("go_downloads"));
+    downloadsAction->setText(i18nc("@action:inmenu Go", "Downloads"));
+    downloadsAction->setToolTip(i18nc("@info:tooltip", "Go to Downloads"));
+    downloadsAction->setWhatsThis(xi18nc("@info:whatsthis",
+                                         "Go to your <filename>Downloads</filename> folder.<nl/>"
+                                         "This is where downloaded files are typically saved."));
+    downloadsAction->setIcon(QIcon::fromTheme(QStringLiteral("folder-download")));
+    downloadsAction->setEnabled(!QStandardPaths::writableLocation(QStandardPaths::DownloadLocation).isEmpty());
+    actionCollection()->setDefaultShortcut(downloadsAction, Qt::ALT | Qt::META | Qt::Key_L);
+    connect(downloadsAction, &QAction::triggered, this, &DolphinMainWindow::goDownloads);
 
     // setup 'Tools' menu
     QAction *compareFiles = actionCollection()->addAction(QStringLiteral("compare_files"));
