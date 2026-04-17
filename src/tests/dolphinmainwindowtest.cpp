@@ -64,9 +64,8 @@ private Q_SLOTS:
     void testFocusPlacesPanel();
     void testPlacesPanelWidthResistance();
     void testGoActions();
-    void testGoUserHomeShortcut();
-    void testGoDownloadsShortcut();
-    void testGoDesktopShortcut();
+    void testGoStandardLocationShortcut_data();
+    void testGoStandardLocationShortcut();
     void testOpenFiles();
     void testAccessibilityTree();
     void testAutoSaveSession();
@@ -756,96 +755,58 @@ void DolphinMainWindowTest::testGoActions()
     QVERIFY(m_mainWindow->actionCollection()->action(QStringLiteral("undo_close_tab"))->isEnabled());
 }
 
-void DolphinMainWindowTest::testGoUserHomeShortcut()
+void DolphinMainWindowTest::testGoStandardLocationShortcut_data()
 {
-    QScopedPointer<TestDir> testDir{new TestDir()};
-    testDir->createDir("start");
+    QTest::addColumn<QString>("actionName");
+    QTest::addColumn<int>("standardLocation");
+    QTest::addColumn<QKeySequence>("shortcut");
+    QTest::addColumn<int>("key");
+    QTest::addColumn<int>("modifiers");
 
-    const QString homePath = QStandardPaths::writableLocation(QStandardPaths::HomeLocation);
-    QVERIFY(!homePath.isEmpty());
-
-    const QUrl startUrl = QUrl::fromLocalFile(QDir::cleanPath(testDir->url().toLocalFile() + "/start"));
-    const QUrl homeUrl = QUrl::fromLocalFile(homePath);
-    m_mainWindow->openDirectories({startUrl}, false);
-    m_mainWindow->show();
-    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
-    QVERIFY(m_mainWindow->isVisible());
-
-    QAction *userHomeAction = m_mainWindow->actionCollection()->action(QStringLiteral("go_user_home"));
-    QVERIFY(userHomeAction);
-    QCOMPARE(userHomeAction->shortcut(), QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_H));
-    QVERIFY(userHomeAction->isEnabled());
-
-    m_mainWindow->activeViewContainer()->view()->setFocus();
-    QTRY_VERIFY(m_mainWindow->activeViewContainer()->view()->hasFocus());
-
-    QSignalSpy spyDirectoryLoadingCompleted(m_mainWindow->m_activeViewContainer->view(), &DolphinView::directoryLoadingCompleted);
-    QTest::keyClick(m_mainWindow.data(), Qt::Key_H, Qt::ShiftModifier | Qt::MetaModifier);
-
-    QVERIFY(spyDirectoryLoadingCompleted.wait());
-    QTRY_COMPARE(m_mainWindow->activeViewContainer()->url(), homeUrl);
+    QTest::newRow("home") << QStringLiteral("go_user_home") << int(QStandardPaths::HomeLocation) << QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_H)
+                          << int(Qt::Key_H) << int(Qt::ShiftModifier | Qt::MetaModifier);
+    QTest::newRow("downloads") << QStringLiteral("go_downloads") << int(QStandardPaths::DownloadLocation) << QKeySequence(Qt::ALT | Qt::META | Qt::Key_L)
+                               << int(Qt::Key_L) << int(Qt::AltModifier | Qt::MetaModifier);
+    QTest::newRow("desktop") << QStringLiteral("go_desktop") << int(QStandardPaths::DesktopLocation) << QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_D)
+                             << int(Qt::Key_D) << int(Qt::ShiftModifier | Qt::MetaModifier);
 }
 
-void DolphinMainWindowTest::testGoDownloadsShortcut()
+void DolphinMainWindowTest::testGoStandardLocationShortcut()
 {
+    QFETCH(QString, actionName);
+    QFETCH(int, standardLocation);
+    QFETCH(QKeySequence, shortcut);
+    QFETCH(int, key);
+    QFETCH(int, modifiers);
+
     QScopedPointer<TestDir> testDir{new TestDir()};
     testDir->createDir("start");
 
-    const QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-    QVERIFY(!downloadsPath.isEmpty());
-    QVERIFY(QDir().mkpath(downloadsPath));
+    const auto location = static_cast<QStandardPaths::StandardLocation>(standardLocation);
+    const QString locationPath = QStandardPaths::writableLocation(location);
+    QVERIFY(!locationPath.isEmpty());
+    QVERIFY(QDir().mkpath(locationPath));
 
     const QUrl startUrl = QUrl::fromLocalFile(QDir::cleanPath(testDir->url().toLocalFile() + "/start"));
-    const QUrl downloadsUrl = QUrl::fromLocalFile(downloadsPath);
+    const QUrl locationUrl = QUrl::fromLocalFile(locationPath);
     m_mainWindow->openDirectories({startUrl}, false);
     m_mainWindow->show();
     QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
     QVERIFY(m_mainWindow->isVisible());
 
-    QAction *downloadsAction = m_mainWindow->actionCollection()->action(QStringLiteral("go_downloads"));
-    QVERIFY(downloadsAction);
-    QCOMPARE(downloadsAction->shortcut(), QKeySequence(Qt::ALT | Qt::META | Qt::Key_L));
-    QVERIFY(downloadsAction->isEnabled());
+    QAction *action = m_mainWindow->actionCollection()->action(actionName);
+    QVERIFY(action);
+    QCOMPARE(action->shortcut(), shortcut);
+    QVERIFY(action->isEnabled());
 
     m_mainWindow->activeViewContainer()->view()->setFocus();
     QTRY_VERIFY(m_mainWindow->activeViewContainer()->view()->hasFocus());
 
     QSignalSpy spyDirectoryLoadingCompleted(m_mainWindow->m_activeViewContainer->view(), &DolphinView::directoryLoadingCompleted);
-    QTest::keyClick(m_mainWindow.data(), Qt::Key_L, Qt::AltModifier | Qt::MetaModifier);
+    QTest::keyClick(m_mainWindow.data(), static_cast<Qt::Key>(key), Qt::KeyboardModifiers(modifiers));
 
     QVERIFY(spyDirectoryLoadingCompleted.wait());
-    QTRY_COMPARE(m_mainWindow->activeViewContainer()->url(), downloadsUrl);
-}
-
-void DolphinMainWindowTest::testGoDesktopShortcut()
-{
-    QScopedPointer<TestDir> testDir{new TestDir()};
-    testDir->createDir("start");
-
-    const QString desktopPath = QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
-    QVERIFY(!desktopPath.isEmpty());
-    QVERIFY(QDir().mkpath(desktopPath));
-
-    const QUrl startUrl = QUrl::fromLocalFile(QDir::cleanPath(testDir->url().toLocalFile() + "/start"));
-    const QUrl desktopUrl = QUrl::fromLocalFile(desktopPath);
-    m_mainWindow->openDirectories({startUrl}, false);
-    m_mainWindow->show();
-    QVERIFY(QTest::qWaitForWindowExposed(m_mainWindow.data()));
-    QVERIFY(m_mainWindow->isVisible());
-
-    QAction *desktopAction = m_mainWindow->actionCollection()->action(QStringLiteral("go_desktop"));
-    QVERIFY(desktopAction);
-    QCOMPARE(desktopAction->shortcut(), QKeySequence(Qt::SHIFT | Qt::META | Qt::Key_D));
-    QVERIFY(desktopAction->isEnabled());
-
-    m_mainWindow->activeViewContainer()->view()->setFocus();
-    QTRY_VERIFY(m_mainWindow->activeViewContainer()->view()->hasFocus());
-
-    QSignalSpy spyDirectoryLoadingCompleted(m_mainWindow->m_activeViewContainer->view(), &DolphinView::directoryLoadingCompleted);
-    QTest::keyClick(m_mainWindow.data(), Qt::Key_D, Qt::ShiftModifier | Qt::MetaModifier);
-
-    QVERIFY(spyDirectoryLoadingCompleted.wait());
-    QTRY_COMPARE(m_mainWindow->activeViewContainer()->url(), desktopUrl);
+    QTRY_COMPARE(m_mainWindow->activeViewContainer()->url(), locationUrl);
 }
 
 void DolphinMainWindowTest::testOpenFiles()
