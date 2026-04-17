@@ -63,9 +63,11 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
+#include <QCollator>
 #include <QDropEvent>
 #include <QGraphicsOpacityEffect>
 #include <QGraphicsSceneDragDropEvent>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QMenu>
 #include <QMimeDatabase>
@@ -75,6 +77,53 @@
 #include <QTimer>
 #include <QToolTip>
 #include <QVBoxLayout>
+
+#include <algorithm>
+
+namespace
+{
+bool isAlphabeticalNavigationKey(QKeyEvent *keyEvent, bool *backwards)
+{
+    if (keyEvent->key() == Qt::Key_Tab && keyEvent->modifiers() == Qt::NoModifier) {
+        *backwards = false;
+        return true;
+    }
+
+    const bool shiftTab = keyEvent->key() == Qt::Key_Tab && keyEvent->modifiers() == Qt::ShiftModifier;
+    const bool backtab = keyEvent->key() == Qt::Key_Backtab && (keyEvent->modifiers() == Qt::NoModifier || keyEvent->modifiers() == Qt::ShiftModifier);
+    if (shiftTab || backtab) {
+        *backwards = true;
+        return true;
+    }
+
+    return false;
+}
+
+QCollator alphabeticalNavigationCollator()
+{
+    QCollator collator;
+
+    using Choice = GeneralSettings::EnumSortingChoice;
+    switch (GeneralSettings::sortingChoice()) {
+    case Choice::NaturalSorting:
+        collator.setCaseSensitivity(Qt::CaseInsensitive);
+        collator.setNumericMode(true);
+        break;
+    case Choice::CaseSensitiveSorting:
+        collator.setCaseSensitivity(Qt::CaseSensitive);
+        collator.setNumericMode(false);
+        break;
+    case Choice::CaseInsensitiveSorting:
+        collator.setCaseSensitivity(Qt::CaseInsensitive);
+        collator.setNumericMode(false);
+        break;
+    default:
+        Q_UNREACHABLE();
+    }
+
+    return collator;
+}
+}
 
 DolphinView::DolphinView(const QUrl &url, QWidget *parent)
     : QWidget(parent)
@@ -1032,16 +1081,21 @@ bool DolphinView::eventFilter(QObject *watched, QEvent *event)
         updatePalette();
         break;
 
-    case QEvent::KeyPress:
+    case QEvent::KeyPress: {
         hideToolTip(ToolTipManager::HideBehavior::Instantly);
+        QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
+        bool backwards = false;
+        if (isAlphabeticalNavigationKey(keyEvent, &backwards) && selectAlphabeticalNeighbor(backwards)) {
+            return true;
+        }
         if (GeneralSettings::useTabForSwitchingSplitView()) {
-            QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
             if (keyEvent->key() == Qt::Key_Tab && keyEvent->modifiers() == Qt::NoModifier) {
                 Q_EMIT toggleActiveViewRequested();
                 return true;
             }
         }
         break;
+    }
     case QEvent::KeyRelease:
         if (static_cast<QKeyEvent *>(event)->key() == Qt::Key_Control) {
             m_controlWheelAccumulatedDelta = 0;
@@ -2080,6 +2134,72 @@ void DolphinView::selectNextItem()
 
         m_selectNextItem = false;
     }
+}
+
+bool DolphinView::selectAlphabeticalNeighbor(bool backwards)
+{
+    if (m_mode != DetailsView && m_mode != CompactView) {
+        return false;
+    }
+
+    KItemListSelectionManager *selectionManager = m_container->controller()->selectionManager();
+    const KItemSet selectedIndexes = selectionManager->selectedItems();
+    if (selectedIndexes.isEmpty()) {
+        return false;
+    }
+
+    QList<int> navigationIndexes;
+    const int itemCount = m_model->count();
+    navigationIndexes.reserve(itemCount);
+    for (int index = 0; index < itemCount; ++index) {
+        if (m_mode == DetailsView && m_model->expandedParentsCount(index) > 0) {
+            continue;
+        }
+        navigationIndexes.append(index);
+    }
+
+    if (navigationIndexes.isEmpty()) {
+        return false;
+    }
+
+    QCollator collator = alphabeticalNavigationCollator();
+    std::sort(navigationIndexes.begin(), navigationIndexes.end(), [this, &collator](int firstIndex, int secondIndex) {
+        const KFileItem firstItem = m_model->fileItem(firstIndex);
+        const KFileItem secondItem = m_model->fileItem(secondIndex);
+
+        int result = collator.compare(firstItem.text(), secondItem.text());
+        if (result != 0) {
+            return result < 0;
+        }
+
+        result = collator.compare(firstItem.name(), secondItem.name());
+        if (result != 0) {
+            return result < 0;
+        }
+
+        return QString::compare(firstItem.url().url(), secondItem.url().url(), Qt::CaseSensitive) < 0;
+    });
+
+    const int currentIndex = selectionManager->currentItem();
+    const int referenceIndex = selectedIndexes.contains(currentIndex) ? currentIndex : selectedIndexes.first();
+    const int referencePosition = navigationIndexes.indexOf(referenceIndex);
+
+    int targetPosition;
+    if (referencePosition >= 0) {
+        targetPosition =
+            backwards ? (referencePosition + navigationIndexes.count() - 1) % navigationIndexes.count() : (referencePosition + 1) % navigationIndexes.count();
+    } else {
+        targetPosition = backwards ? navigationIndexes.count() - 1 : 0;
+    }
+
+    const int targetIndex = navigationIndexes.at(targetPosition);
+    selectionManager->clearSelection();
+    selectionManager->setCurrentItem(targetIndex);
+    selectionManager->setSelected(targetIndex, 1, KItemListSelectionManager::Select);
+    selectionManager->beginAnchoredSelection(targetIndex);
+    m_view->scrollToItem(targetIndex);
+
+    return true;
 }
 
 void DolphinView::slotRenamingResult(KJob *job)

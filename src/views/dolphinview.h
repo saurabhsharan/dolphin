@@ -985,6 +985,8 @@ private:
 
     void selectFileOnceAvailable(const QUrl &url, const std::function<bool()> &condition);
 
+    bool selectAlphabeticalNeighbor(bool backwards);
+
 private:
     void updatePalette();
     void showLoadingPlaceholder();
