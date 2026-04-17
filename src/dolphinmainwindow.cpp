@@ -111,6 +111,12 @@ const int CurrentDolphinVersion = 202;
 const int MaxNumberOfNavigationentries = 12;
 // The maximum number of "Go to Tab" shortcuts
 const int MaxActivateTabShortcuts = 9;
+
+QUrl urlForStandardLocation(QStandardPaths::StandardLocation location)
+{
+    const QString path = QStandardPaths::writableLocation(location);
+    return path.isEmpty() ? QUrl() : QUrl::fromLocalFile(path);
+}
 }
 
 DolphinMainWindow::DolphinMainWindow()
@@ -1297,14 +1303,34 @@ void DolphinMainWindow::goHome()
     m_activeViewContainer->urlNavigatorInternalWithHistory()->goHome();
 }
 
-void DolphinMainWindow::goDownloads()
+void DolphinMainWindow::goUserHome()
 {
-    const QString downloadsPath = QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-    if (downloadsPath.isEmpty()) {
+    const QUrl homeUrl = urlForStandardLocation(QStandardPaths::HomeLocation);
+    if (!homeUrl.isValid()) {
         return;
     }
 
-    changeUrl(QUrl::fromLocalFile(downloadsPath));
+    changeUrl(homeUrl);
+}
+
+void DolphinMainWindow::goDownloads()
+{
+    const QUrl downloadsUrl = urlForStandardLocation(QStandardPaths::DownloadLocation);
+    if (!downloadsUrl.isValid()) {
+        return;
+    }
+
+    changeUrl(downloadsUrl);
+}
+
+void DolphinMainWindow::goDesktop()
+{
+    const QUrl desktopUrl = urlForStandardLocation(QStandardPaths::DesktopLocation);
+    if (!desktopUrl.isValid()) {
+        return;
+    }
+
+    changeUrl(desktopUrl);
 }
 
 void DolphinMainWindow::goBackInNewTab()
@@ -2197,6 +2223,17 @@ void DolphinMainWindow::setupActions()
                                     "<filename>Home</filename> folder.<nl/>Every user account "
                                     "has their own <filename>Home</filename> that contains their personal files, "
                                     "as well as hidden folders for their applications' data and configuration files."));
+    QAction *userHomeAction = actionCollection()->addAction(QStringLiteral("go_user_home"));
+    userHomeAction->setText(i18nc("@action:inmenu Go", "Home Folder"));
+    userHomeAction->setToolTip(i18nc("@info:tooltip", "Go to Home Folder"));
+    userHomeAction->setWhatsThis(xi18nc("@info:whatsthis",
+                                        "Go to your <filename>Home</filename> folder.<nl/>"
+                                        "This is the folder that contains your personal files."));
+    userHomeAction->setIcon(QIcon::fromTheme(QStringLiteral("user-home")));
+    userHomeAction->setEnabled(urlForStandardLocation(QStandardPaths::HomeLocation).isValid());
+    actionCollection()->setDefaultShortcut(userHomeAction, Qt::SHIFT | Qt::META | Qt::Key_H);
+    connect(userHomeAction, &QAction::triggered, this, &DolphinMainWindow::goUserHome);
+
     QAction *downloadsAction = actionCollection()->addAction(QStringLiteral("go_downloads"));
     downloadsAction->setText(i18nc("@action:inmenu Go", "Downloads"));
     downloadsAction->setToolTip(i18nc("@info:tooltip", "Go to Downloads"));
@@ -2204,9 +2241,20 @@ void DolphinMainWindow::setupActions()
                                          "Go to your <filename>Downloads</filename> folder.<nl/>"
                                          "This is where downloaded files are typically saved."));
     downloadsAction->setIcon(QIcon::fromTheme(QStringLiteral("folder-download")));
-    downloadsAction->setEnabled(!QStandardPaths::writableLocation(QStandardPaths::DownloadLocation).isEmpty());
+    downloadsAction->setEnabled(urlForStandardLocation(QStandardPaths::DownloadLocation).isValid());
     actionCollection()->setDefaultShortcut(downloadsAction, Qt::ALT | Qt::META | Qt::Key_L);
     connect(downloadsAction, &QAction::triggered, this, &DolphinMainWindow::goDownloads);
+
+    QAction *desktopAction = actionCollection()->addAction(QStringLiteral("go_desktop"));
+    desktopAction->setText(i18nc("@action:inmenu Go", "Desktop"));
+    desktopAction->setToolTip(i18nc("@info:tooltip", "Go to Desktop"));
+    desktopAction->setWhatsThis(xi18nc("@info:whatsthis",
+                                       "Go to your <filename>Desktop</filename> folder.<nl/>"
+                                       "This is where files shown on the desktop are typically saved."));
+    desktopAction->setIcon(QIcon::fromTheme(QStringLiteral("user-desktop")));
+    desktopAction->setEnabled(urlForStandardLocation(QStandardPaths::DesktopLocation).isValid());
+    actionCollection()->setDefaultShortcut(desktopAction, Qt::SHIFT | Qt::META | Qt::Key_D);
+    connect(desktopAction, &QAction::triggered, this, &DolphinMainWindow::goDesktop);
 
     // setup 'Tools' menu
     QAction *compareFiles = actionCollection()->addAction(QStringLiteral("compare_files"));

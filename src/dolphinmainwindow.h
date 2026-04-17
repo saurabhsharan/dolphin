@@ -453,8 +453,14 @@ private Q_SLOTS:
     /** Changes the location to the home URL. */
     void goHome();
 
+    /** Changes the location to the user's Home folder. */
+    void goUserHome();
+
     /** Changes the location to the Downloads URL. */
     void goDownloads();
+
+    /** Changes the location to the user's Desktop folder. */
+    void goDesktop();
 
     /** Open the previous URL in the URL history in a new tab. */
     void goBackInNewTab();
