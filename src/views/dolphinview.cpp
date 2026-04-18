@@ -99,6 +99,26 @@ bool isAlphabeticalNavigationKey(QKeyEvent *keyEvent, bool *backwards)
     return false;
 }
 
+bool isListEndpointNavigationKey(QKeyEvent *keyEvent, bool *bottom)
+{
+    const bool onlyAltPressed = keyEvent->modifiers() == Qt::AltModifier;
+    if (!onlyAltPressed) {
+        return false;
+    }
+
+    if (keyEvent->key() == Qt::Key_Up) {
+        *bottom = false;
+        return true;
+    }
+
+    if (keyEvent->key() == Qt::Key_Down) {
+        *bottom = true;
+        return true;
+    }
+
+    return false;
+}
+
 QCollator alphabeticalNavigationCollator()
 {
     QCollator collator;
@@ -1086,6 +1106,10 @@ bool DolphinView::eventFilter(QObject *watched, QEvent *event)
         QKeyEvent *keyEvent = static_cast<QKeyEvent *>(event);
         bool backwards = false;
         if (isAlphabeticalNavigationKey(keyEvent, &backwards) && selectAlphabeticalNeighbor(backwards)) {
+            return true;
+        }
+        bool bottom = false;
+        if (isListEndpointNavigationKey(keyEvent, &bottom) && selectListEndpoint(bottom)) {
             return true;
         }
         if (GeneralSettings::useTabForSwitchingSplitView()) {
@@ -2193,6 +2217,38 @@ bool DolphinView::selectAlphabeticalNeighbor(bool backwards)
     }
 
     const int targetIndex = navigationIndexes.at(targetPosition);
+    selectionManager->clearSelection();
+    selectionManager->setCurrentItem(targetIndex);
+    selectionManager->setSelected(targetIndex, 1, KItemListSelectionManager::Select);
+    selectionManager->beginAnchoredSelection(targetIndex);
+    m_view->scrollToItem(targetIndex);
+
+    return true;
+}
+
+bool DolphinView::selectListEndpoint(bool bottom)
+{
+    if (m_mode != DetailsView && m_mode != CompactView) {
+        return false;
+    }
+
+    const int itemCount = m_model->count();
+    if (itemCount == 0) {
+        return false;
+    }
+
+    int targetIndex = bottom ? itemCount - 1 : 0;
+    if (m_mode == DetailsView) {
+        while (targetIndex >= 0 && targetIndex < itemCount && m_model->expandedParentsCount(targetIndex) > 0) {
+            targetIndex += bottom ? -1 : 1;
+        }
+    }
+
+    if (targetIndex < 0 || targetIndex >= itemCount) {
+        return false;
+    }
+
+    KItemListSelectionManager *selectionManager = m_container->controller()->selectionManager();
     selectionManager->clearSelection();
     selectionManager->setCurrentItem(targetIndex);
     selectionManager->setSelected(targetIndex, 1, KItemListSelectionManager::Select);
